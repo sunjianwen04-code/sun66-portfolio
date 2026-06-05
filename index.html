@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sun66 // 失控的艺术系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{font-family:'VT323';src:local('VT323'),local('Courier New');font-display:swap}
+:root{--bg:#0a0e0a;--fg:#3aff6b;--dim:#1a4a2a;--glitch:#ff3a6b;--card:#0d130d;--border:#1a3a1a}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:'VT323','Courier New',monospace;overflow-x:hidden;min-height:100vh;line-height:1.5;position:relative}
+
+/* CRT Mask */
+.crt{position:fixed;inset:0;pointer-events:none;z-index:9997}
+.crt::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.3) 3px,rgba(0,0,0,.3) 4px)}
+.crt::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.5) 100%)}
+
+/* Scanline */
+.scan{position:fixed;inset:0;pointer-events:none;z-index:9998;overflow:hidden}
+.scan::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:rgba(58,255,107,.08);animation:scanMove 2.5s linear infinite}
+@keyframes scanMove{0%{top:-3px}100%{top:100%}}
+
+/* Noise */
+.noise{position:fixed;inset:0;pointer-events:none;z-index:9996;opacity:.04;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px 200px}
+
+/* Digital Rain */
+#rain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.12}
+
+/* Cursor */
+.cursor-glow{position:fixed;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(58,255,107,.1),transparent 70%);pointer-events:none;z-index:9999;transform:translate(-50%,-50%);will-change:left,top;opacity:0;transition:opacity .4s}
+.cursor-glow.vis{opacity:1}
+
+/* Shell */
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 20px 40px}
+
+/* Nav */
+.nav{display:flex;align-items:center;gap:6px;padding:18px 0;border-bottom:1px solid var(--dim);position:sticky;top:0;background:var(--bg);z-index:100;flex-wrap:wrap}
+.nav-brand{font-size:13px;font-weight:700;color:var(--fg);margin-right:auto;letter-spacing:.15em}
+.nav a{font-size:11px;color:var(--dim);text-decoration:none;padding:3px 10px;border:1px solid transparent;transition:all .2s;letter-spacing:.1em}
+.nav a:hover,.nav a.active{border-color:var(--fg);color:var(--fg)}
+.nav-toggle{display:none;background:none;border:1px solid var(--dim);color:var(--fg);font:inherit;font-size:11px;padding:6px 14px;cursor:pointer}
+@media(max-width:680px){
+  .nav a{display:none}
+  .nav a.mob-show{display:inline-block}
+  .nav.open a{display:inline-block;width:100%}
+  .nav-toggle{display:inline-block}
+}
+
+/* Screens */
+.screen{display:none;padding:30px 0 60px;animation:fadeIn .5s}
+.screen.active{display:block}
+@keyframes fadeIn{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
+
+/* Terminal (Home) */
+.term{background:var(--card);border:1px solid var(--dim);border-radius:4px;margin-top:10px}
+.term-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--dim);font-size:10px;letter-spacing:.1em}
+.term-bar span{width:9px;height:9px;border-radius:50%;display:inline-block}
+.term-bar .tb1{background:#ff5f56}
+.term-bar .tb2{background:#ffbd2e}
+.term-bar .tb3{background:#27c93f}
+.term-bar .tb-label{color:var(--bg);margin-left:auto;font-weight:700;font-size:9px;letter-spacing:.15em}
+.term-out{min-height:220px;padding:16px;font-size:12px;line-height:1.7;overflow-y:auto;max-height:400px}
+.term-out p{margin:0;word-break:break-word}
+.term-out .prompt{color:var(--fg)}
+.term-out .comment{color:var(--dim)}
+.term-out .highlight{color:var(--fg);font-weight:700}
+.term-out .error{color:var(--glitch)}
+.term-out .file-line{cursor:pointer;transition:color .2s}
+.term-out .file-line:hover{color:var(--fg);text-decoration:underline}
+.term-in{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--dim)}
+.term-in label{font-size:10px;color:var(--dim)}
+.term-in .ps1{color:var(--fg);font-size:13px}
+.term-in input{flex:1;background:transparent;border:none;color:var(--fg);font:inherit;font-size:12px;outline:none;padding:4px 0;caret-color:var(--fg)}
+.term-in input::placeholder{color:var(--dim)}
+
+/* Boot animation */
+.boot{display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;min-height:220px;text-align:center}
+.boot .boot-icon{font-size:36px;margin-bottom:8px;letter-spacing:.2em}
+.boot .boot-line{font-size:11px;color:var(--dim);letter-spacing:.15em}
+.boot .boot-progress{width:200px;height:2px;background:var(--dim);margin:12px 0;position:relative;overflow:hidden}
+.boot .boot-progress::after{content:'';position:absolute;left:0;top:0;height:100%;width:0;background:var(--fg);animation:bootLoad 2s ease forwards}
+@keyframes bootLoad{0%{width:0}100%{width:100%}}
+
+/* ===== 3D ORBIT GALLERY ===== */
+#works-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px}
+#works-header p{font-size:11px;color:var(--dim);letter-spacing:.1em}
+
+.orbit-stage{position:relative;width:100%;height:620px;perspective:1200px;overflow:hidden;margin-bottom:40px}
+@media(max-width:680px){.orbit-stage{height:480px;perspective:800px}}
+
+.orbit-scene{width:100%;height:100%;position:relative;transform-style:preserve-3d}
+
+.orbit-card{position:absolute;width:220px;height:165px;left:50%;top:50%;margin-left:-110px;margin-top:-82px;
+  border:1px solid var(--dim);background:var(--card);overflow:hidden;
+  cursor:pointer;transition:border-color .3s,transform .15s ease-out;backface-visibility:hidden;
+  transform-style:preserve-3d;will-change:transform}
+.orbit-card:hover{border-color:var(--fg);z-index:100}
+.orbit-card img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.05) saturate(.85);background:#000;
+  transition:filter .4s}
+.orbit-card:hover img{filter:contrast(1.15) saturate(1)}
+.orbit-card .card-tag{position:absolute;bottom:0;left:0;right:0;padding:8px 10px;
+  background:linear-gradient(transparent,rgba(10,14,10,.92));opacity:0;transition:opacity .35s}
+.orbit-card:hover .card-tag{opacity:1}
+.orbit-card .card-tag span{font-size:9px;letter-spacing:.1em;display:block}
+
+/* orbit info */
+.orbit-info{text-align:center;font-size:10px;color:var(--dim);letter-spacing:.15em;margin-top:-16px;margin-bottom:20px}
+.orbit-info em{color:var(--fg);font-style:normal}
+
+/* Logs */
+.logs-list{display:grid;gap:12px}
+.log-item{padding:20px;border:1px solid var(--dim);background:var(--card);transition:border-color .2s}
+.log-item:hover{border-color:var(--fg)}
+.log-item span{font-size:10px;color:var(--fg)}
+.log-item h3{font-size:15px;margin:6px 0}
+.log-item p{font-size:11px;color:var(--dim);line-height:1.6}
+
+/* About */
+.about-wrap{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+@media(max-width:680px){.about-wrap{grid-template-columns:1fr}}
+.about-wrap h2{font-size:20px;line-height:1.4;min-height:120px}
+.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.tag-row span{border:1px solid var(--dim);padding:3px 10px;font-size:10px;color:var(--dim);letter-spacing:.08em}
+
+/* Contact */
+.contact-links{display:flex;flex-direction:column;gap:12px;margin-top:16px;max-width:400px}
+.contact-links a{color:var(--fg);text-decoration:none;font-size:13px;padding:10px 14px;border:1px solid var(--dim);transition:all .2s;display:flex;align-items:center;gap:10px}
+.contact-links a:hover{border-color:var(--fg)}
+.contact-links a .cl-arrow{color:var(--dim)}
+
+/* Dialog */
+.dialog{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;display:none;align-items:center;justify-content:center;padding:20px}
+.dialog.open{display:flex}
+.dialog-box{background:var(--card);border:1px solid var(--fg);max-width:700px;width:100%;padding:28px;position:relative;max-height:88vh;overflow-y:auto}
+.dialog-box img{width:100%;max-height:500px;object-fit:contain;background:#000;margin-bottom:16px}
+.dialog-box h2{font-size:18px;margin-bottom:4px}
+.dialog-box .d-meta{font-size:10px;color:var(--dim);margin-bottom:12px;letter-spacing:.1em}
+.dialog-box p{font-size:12px;color:var(--dim);line-height:1.7}
+.dialog-close{position:absolute;top:12px;right:12px;background:transparent;border:1px solid var(--dim);color:var(--fg);width:32px;height:32px;font-size:16px;cursor:pointer;transition:all .2s}
+.dialog-close:hover{border-color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="crt"></div>
+<div class="scan"></div>
+<div class="noise"></div>
+<canvas id="rain"></canvas>
+<div class="cursor-glow" id="glow"></div>
+
+<div class="wrap">
+<nav class="nav" id="navBar">
+<span class="nav-brand">SUN66::TERMINAL</span>
+<a href="#" class="active" data-screen="terminal">TERMINAL</a>
+<a href="#" data-screen="works">WORKS</a>
+<a href="#" data-screen="logs">LOGS</a>
+<a href="#" data-screen="system">SYSTEM</a>
+<a href="#" data-screen="contact">CONTACT</a>
+<button class="nav-toggle" id="navToggle">[=]</button>
+</nav>
+
+<!-- Terminal -->
+<div class="screen active" id="screen-terminal">
+<div class="term">
+<div class="term-bar">
+<span class="tb1"></span><span class="tb2"></span><span class="tb3"></span>
+<span class="tb-label">AWEN_OS v2.6 // PORTFOLIO INTERFACE</span>
+</div>
+<div class="term-out" id="termOut">
+<div class="boot" id="bootAnim">
+<div class="boot-icon">[  SUN66  ]</div>
+<div class="boot-line">LOADING GROTESQUE VISUAL SYSTEM</div>
+<div class="boot-progress"></div>
+<div class="boot-line" style="animation:blink 1s steps(1) infinite;margin-top:4px">████ RUNNING ████</div>
+<style>@keyframes blink{0%{opacity:1}50%{opacity:0}}</style>
+</div>
+</div>
+<form class="term-in" id="termForm" autocomplete="off">
+<label for="tIn">CMD</label>
+<span class="ps1">&gt;</span>
+<input id="tIn" placeholder="open portfolio / help" autofocus/>
+</form>
+</div>
+</div>
+
+<!-- Works -->
+<div class="screen" id="screen-works">
+<div id="works-header">
+<p style="font-size:11px;color:var(--dim);letter-spacing:.1em">ARCHIVE / VISUAL FILES // ORBIT MODE</p>
+</div>
+<div class="orbit-stage" id="orbitStage">
+<div class="orbit-scene" id="orbitScene"></div>
+</div>
+<div class="orbit-info">拖拽或移动鼠标控制视角 · 悬停放大 · 共 <em id="totalCount">0</em> 个文件</div>
+</div>
+
+<!-- Logs -->
+<div class="screen" id="screen-logs">
+<p style="font-size:11px;color:var(--dim);letter-spacing:.1em;margin-bottom:24px">/// AIGC EXPERIMENT LOGS</p>
+<div class="logs-list">
+<div class="log-item"><span>LOG 001</span><h3>AIGC Prompt Architecture</h3><p>将风格关键词、构图、材质、镜头、负向限制拆解为可复用模块，形成稳定的生成流程。目前已积累 40+ 组合模板。</p></div>
+<div class="log-item"><span>LOG 002</span><h3>Motion Extension Pipeline</h3><p>把静态作品拆解为入场、展开、呼吸、扫描、溶解等动画段落，适配短视频（抖音/B站）与长视频叙事。</p></div>
+<div class="log-item"><span>LOG 003</span><h3>Brand Output System</h3><p>将先锋视觉转译为海报、封面、品牌物料、社媒传播图与潮流品牌视觉系统。输出格式含 CMYK / RGB / SVG / MP4。</p></div>
+<div class="log-item"><span>LOG 004</span><h3>Glitch Post-Processing</h3><p>开发 VHS 故障滤镜管线：Chromatic Aberration + Pixel Sorting + 局部撕裂 Mask，在 AE 中用表达式控制随机种子。</p></div>
+</div>
+</div>
+
+<!-- System -->
+<div class="screen" id="screen-system">
+<div class="about-wrap">
+<div>
+<p style="font-size:10px;color:var(--dim);letter-spacing:.15em;margin-bottom:12px">/// SYSTEM PROFILE</p>
+<h2>孙六六 / Sun66<br>一个倾向怪诞美学、AIGC 概念设计与动态视觉实验的创作者。</h2>
+</div>
+<div>
+<p style="font-size:12px;color:var(--dim);line-height:1.8">当前网站将作品包装为"数字终端档案"，一个失控的艺术系统。<br>用于个人作品集、商业合作展示、设计服务落地页。</p>
+<div class="tag-row">
+<span>AIGC Concept</span><span>Grotesque</span><span>Motion</span><span>Brand</span><span>Experiment</span><span>Terminal</span>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Contact -->
+<div class="screen" id="screen-contact">
+<p style="font-size:11px;color:var(--dim);letter-spacing:.1em;margin-bottom:6px">/// COLLABORATION SIGNAL</p>
+<h2 style="font-size:18px;margin-bottom:12px">发送合作指令。</h2>
+<p style="font-size:12px;color:var(--dim);margin-bottom:16px">点击下方通道直接建立连接。</p>
+<div class="contact-links">
+<a href="mailto:sunjianwen04@gmail.com"><span class="cl-arrow">→</span> sunjianwen04@gmail.com</a>
+<a href="https://www.instagram.com/" target="_blank"><span class="cl-arrow">→</span> INSTAGRAM / @sun66</a>
+<a href="https://www.behance.net/" target="_blank"><span class="cl-arrow">→</span> BEHANCE / sun66</a>
+</div>
+</div>
+</div>
+
+<div class="dialog" id="dialog">
+<div class="dialog-box">
+<button class="dialog-close" id="dialogClose">✕</button>
+<img id="dImg" src="" alt=""/>
+<h2 id="dTitle"></h2>
+<div class="d-meta" id="dMeta"></div>
+<p id="dDesc"></p>
+</div>
+</div>
+
+<script>
+// === Digital Rain ===
+const c=document.getElementById('rain'),cx=c.getContext('2d');
+function resize(){c.width=window.innerWidth;c.height=window.innerHeight}
+resize();window.addEventListener('resize',resize);
+const drops=Array(70).fill(0);
+(function rain(){cx.fillStyle='rgba(10,14,10,.06)';cx.fillRect(0,0,c.width,c.height);
+cx.fillStyle='#3aff6b';cx.font='12px monospace';
+const cc=Math.floor(c.width/14);while(drops.length<cc)drops.push(0);
+for(let i=0;i<cc;i++){const s=String.fromCharCode(0x30A0+Math.random()*96|0);
+cx.fillText(s,i*14,drops[i]||0);if((drops[i]||0)>c.height&&Math.random()>.97)drops[i]=0;
+drops[i]=(drops[i]||0)+14}requestAnimationFrame(rain)})();
+
+// === Cursor ===
+const glow=document.getElementById('glow');
+document.addEventListener('mousemove',e=>{glow.style.left=e.clientX+'px';glow.style.top=e.clientY+'px';glow.classList.add('vis')});
+document.addEventListener('mouseleave',()=>glow.classList.remove('vis'));
+
+// === Nav ===
+const navLinks=document.querySelectorAll('.nav a[data-screen]');
+const screens={};
+document.querySelectorAll('.screen').forEach(s=>{screens[s.id.replace('screen-','')]=s});
+navLinks.forEach(a=>{a.addEventListener('click',e=>{e.preventDefault();
+navLinks.forEach(l=>l.classList.remove('active'));a.classList.add('active');
+Object.values(screens).forEach(s=>s.classList.remove('active'));
+const t=a.dataset.screen;if(screens[t])screens[t].classList.add('active');
+document.getElementById('navBar').classList.remove('open');
+if(t==='works')initOrbit()})});
+document.getElementById('navToggle').addEventListener('click',()=>{
+document.getElementById('navBar').classList.toggle('open')});
+
+// ===== 3D ORBIT GALLERY =====
+const orbitScene=document.getElementById('orbitScene');
+const orbitStage=document.getElementById('orbitStage');
+const totalCount=document.getElementById('totalCount');
+
+// 23 images: some are .png
+const images=Array.from({length:23},(_,i)=>{
+  const n=i+1;
+  // img16 and img19 are .png
+  const ext=(n===16||n===19)?'png':'jpg';
+  return {idx:n,src:`images/img${String(n).padStart(2,'0')}.${ext}`};
+});
+totalCount.textContent=images.length;
+
+// Orbit state
+let angle=0;
+let autoRotate=true;
+let autoSpeed=0.0012; // radians per frame — very slow orbit
+let targetAngle=null;
+let isDragging=false;
+let dragStartX=0;
+let dragAngle=0;
+let mouseX=0,mouseY=0;
+let tiltX=0,tiltY=0;
+let hoveredIdx=-1;
+
+const radius=380;
+const cardW=210,cardH=157;
+const count=images.length;
+
+function buildOrbit(){
+  orbitScene.innerHTML='';
+  images.forEach((img,i)=>{
+    const card=document.createElement('div');
+    card.className='orbit-card';
+    card.dataset.idx=i;
+    // Initial angle
+    const a=(i/count)*Math.PI*2;
+    card.dataset.angle=a;
+    card.innerHTML=`
+      <img src="${img.src}" alt="WORK ${img.idx}" loading="lazy" onerror="this.style.display='none'"/>
+      <div class="card-tag"><span>FILE ${String(img.idx).padStart(2,'0')}</span></div>`;
+    card.addEventListener('mouseenter',()=>{hoveredIdx=i;autoRotate=false});
+    card.addEventListener('mouseleave',()=>{hoveredIdx=-1;setTimeout(()=>{if(hoveredIdx===-1)autoRotate=true},600)});
+    card.addEventListener('click',()=>openOrbitWork(i));
+    orbitScene.appendChild(card);
+  });
+  updatePositions(0);
+}
+
+function updatePositions(baseAngle){
+  const cards=orbitScene.children;
+  for(let i=0;i<cards.length;i++){
+    const card=cards[i];
+    const a=(i/count)*Math.PI*2+baseAngle;
+    const x=Math.sin(a)*radius;
+    const z=Math.cos(a)*radius;
+    const scale=0.5+(z+radius)/(radius*2)*0.5;
+    const opacity=0.35+(z+radius)/(radius*2)*0.65;
+    const zIndex=Math.round((z+radius)*10);
+
+    let extraScale=1;
+    if(hoveredIdx===i)extraScale=1.6;
+
+    card.style.transform=`translate3d(${x}px,0,${z}px) rotateY(${-a*(180/Math.PI)}deg) scale(${scale*extraScale})`;
+    card.style.opacity=opacity;
+    card.style.zIndex=zIndex;
+    card.style.pointerEvents=opacity>0.4?'auto':'none';
+  }
+}
+
+// Auto rotate loop
+function orbitLoop(){
+  if(autoRotate){
+    angle+=autoSpeed;
+  }else if(targetAngle!==null){
+    const diff=targetAngle-angle;
+    angle+=diff*0.08;
+    if(Math.abs(diff)<0.001){angle=targetAngle;targetAngle=null;autoRotate=true}
+  }
+  // Tilt effect based on mouse
+  const tiltA=tiltX*0.0003;
+  const tiltB=tiltY*0.0002;
+  orbitScene.style.transform=`rotateX(${tiltB}rad) rotateY(${tiltA}rad)`;
+  updatePositions(angle);
+  requestAnimationFrame(orbitLoop);
+}
+
+// Mouse interaction
+orbitStage.addEventListener('mousemove',e=>{
+  const rect=orbitStage.getBoundingClientRect();
+  mouseX=(e.clientX-rect.left)/rect.width;
+  mouseY=(e.clientY-rect.top)/rect.height;
+  tiltX=(mouseX-0.5)*2;
+  tiltY=(mouseY-0.5)*2;
+  if(isDragging){
+    const dx=e.clientX-dragStartX;
+    angle=dragAngle+dx*0.01;
+    autoRotate=false;
+    targetAngle=null;
+  }
+});
+
+orbitStage.addEventListener('mousedown',e=>{
+  isDragging=true;
+  dragStartX=e.clientX;
+  dragAngle=angle;
+  autoRotate=false;
+  targetAngle=null;
+});
+
+window.addEventListener('mouseup',()=>{
+  if(isDragging){
+    isDragging=false;
+    // Smooth resume: wait a bit before resuming auto-rotate
+    setTimeout(()=>{if(!isDragging)autoRotate=true},400);
+  }
+});
+
+// Touch support
+orbitStage.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  isDragging=true;
+  dragStartX=t.clientX;
+  dragAngle=angle;
+  autoRotate=false;
+  targetAngle=null;
+},{passive:true});
+
+orbitStage.addEventListener('touchmove',e=>{
+  if(isDragging){
+    const t=e.touches[0];
+    const dx=t.clientX-dragStartX;
+    angle=dragAngle+dx*0.01;
+  }
+},{passive:true});
+
+orbitStage.addEventListener('touchend',()=>{
+  isDragging=false;
+  setTimeout(()=>{if(!isDragging)autoRotate=true},400);
+});
+
+// Dialog for orbit
+function openOrbitWork(i){
+  const img=images[i];
+  document.getElementById('dImg').src=img.src;
+  document.getElementById('dTitle').textContent=`FILE ${String(img.idx).padStart(2,'0')}`;
+  document.getElementById('dMeta').textContent=`// ORBIT NODE ${i+1} of ${count}`;
+  document.getElementById('dDesc').textContent=`作品 ${img.idx} — 点击关闭或按 ESC`;
+  document.getElementById('dialog').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+document.getElementById('dialogClose').addEventListener('click',()=>{
+  document.getElementById('dialog').classList.remove('open');document.body.style.overflow=''});
+document.getElementById('dialog').addEventListener('click',e=>{
+  if(e.target===e.currentTarget){document.getElementById('dialog').classList.remove('open');document.body.style.overflow=''}});
+
+function initOrbit(){if(!orbitScene.hasChildNodes())buildOrbit()}
+
+// === Terminal ===
+const termForm=document.getElementById('termForm'),tIn=document.getElementById('tIn'),termOut=document.getElementById('termOut');
+let booted=false;
+
+function writeTerm(h){
+  if(!booted)return;
+  const d=document.createElement('div');d.innerHTML=h;termOut.appendChild(d);
+  termOut.scrollTop=termOut.scrollHeight;
+}
+function writeLine(text,cls=''){
+  writeTerm(`<p${cls?` class="${cls}"`:''}>${text}</p>`);
+}
+
+setTimeout(()=>{
+  document.getElementById('bootAnim').remove();
+  writeLine(`<span class="prompt">SYSTEM READY // SUN66 :: TERMINAL v2.6</span>`);
+  writeLine(`<span class="comment">// AUTO-LOADING ORBIT PORTFOLIO…</span>`);
+  booted=true;
+  // Auto-redirect to Works screen after short delay
+  setTimeout(()=>{
+    navLinks.forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.nav a[data-screen]')[1].classList.add('active');
+    Object.values(screens).forEach(s=>s.classList.remove('active'));
+    screens['works'].classList.add('active');
+    initOrbit();
+    writeLine(`<span class="highlight">// ORBIT PORTFOLIO LOADED — ${count} files in rotation</span>`);
+    writeLine(`<span class="comment">// 拖拽旋转 · 悬停放大 · 点击查看</span>`);
+    tIn.focus();
+  },800);
+},2500);
+
+termForm.addEventListener('submit',e=>{
+  e.preventDefault();const v=tIn.value.trim().toLowerCase();tIn.value='';
+  if(!v)return;
+  if(!booted){writeLine(`<span class="error">// SYSTEM BOOTING… 请稍候</span>`);return}
+  writeLine(`<span class="prompt">&gt; ${v}</span>`);
+
+  if(v==='help'){
+    writeLine(`<span class="comment">  open portfolio       — 加载 3D 轨道作品集</span>`);
+    writeLine(`<span class="comment">  orbit               — 进入轨道视图</span>`);
+    writeLine(`<span class="comment">  speed &lt;n&gt;         — 调整旋转速度 (0.001-0.05)</span>`);
+    writeLine(`<span class="comment">  stop | play         — 暂停/继续旋转</span>`);
+    writeLine(`<span class="comment">  logs                — 创作记录</span>`);
+    writeLine(`<span class="comment">  system              — 创作者信息</span>`);
+    writeLine(`<span class="comment">  contact             — 合作通道</span>`);
+    writeLine(`<span class="comment">  clear               — 清屏</span>`);
+    writeLine(`<span class="comment">  boot                — 重新启动系统</span>`);
+    return;
+  }
+  if(v==='clear'){termOut.innerHTML='';return}
+  if(v==='open portfolio'||v==='open'||v==='orbit'){
+    navLinks.forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.nav a[data-screen]')[1].classList.add('active');
+    Object.values(screens).forEach(s=>s.classList.remove('active'));
+    screens['works'].classList.add('active');initOrbit();
+    writeLine(`<span class="highlight">// ORBIT PORTFOLIO LOADED — ${count} files in rotation</span>`);
+    writeLine(`<span class="comment">// 拖拽旋转 · 悬停放大 · 点击查看</span>`);
+    return;
+  }
+  if(v==='logs'){
+    navLinks.forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.nav a[data-screen]')[2].classList.add('active');
+    Object.values(screens).forEach(s=>s.classList.remove('active'));screens['logs'].classList.add('active');
+    writeLine(`<span class="highlight">// LOADED: 4 experiment logs</span>`);return;
+  }
+  if(v==='system'){
+    navLinks.forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.nav a[data-screen]')[3].classList.add('active');
+    Object.values(screens).forEach(s=>s.classList.remove('active'));screens['system'].classList.add('active');
+    writeLine(`<span class="highlight">// SYSTEM PROFILE: Sun66 / 孙六六</span>`);return;
+  }
+  if(v==='contact'){
+    navLinks.forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.nav a[data-screen]')[4].classList.add('active');
+    Object.values(screens).forEach(s=>s.classList.remove('active'));screens['contact'].classList.add('active');
+    writeLine(`<span class="highlight">// sunjianwen04@gmail.com</span>`);return;
+  }
+  if(v==='stop'){
+    autoRotate=false;writeLine(`<span class="comment">// 旋转已暂停</span>`);return;
+  }
+  if(v==='play'){
+    autoRotate=true;writeLine(`<span class="comment">// 旋转已恢复</span>`);return;
+  }
+  const sm=v.match(/^speed\s+(\d+\.?\d*)$/);
+  if(sm){
+    const s=parseFloat(sm[1]);
+    if(s>=0.001&&s<=0.05){autoSpeed=s;writeLine(`<span class="comment">// 速度设为 ${s}</span>`)}
+    else writeLine(`<span class="error">// 速度范围: 0.001 ~ 0.05</span>`);
+    return;
+  }
+  if(v==='boot'){
+    booted=false;
+    termOut.innerHTML=`<div class="boot" id="bootAnim">
+      <div class="boot-icon">[  SUN66  ]</div>
+      <div class="boot-line">REBOOTING GROTESQUE VISUAL SYSTEM</div>
+      <div class="boot-progress"></div>
+      <div class="boot-line" style="animation:blink 1s steps(1) infinite;margin-top:4px">████ REBOOT ████</div></div>`;
+    setTimeout(()=>{
+      document.getElementById('bootAnim').remove();
+      writeLine(`<span class="prompt">SYSTEM REBOOTED // SUN66 :: TERMINAL v2.6</span>`);
+      writeLine(`<span class="comment">// 输入 open portfolio 加载作品集</span>`);
+      booted=true;tIn.focus();
+    },2500);
+    return;
+  }
+  writeLine(`<span class="error">// 未知指令: ${v}</span>`);
+  writeLine(`<span class="comment">// 输入 help 查看可用命令</span>`);
+});
+
+// Keyboard shortcut
+document.addEventListener('keydown',e=>{
+  if(e.key==='/'&&document.activeElement!==tIn){e.preventDefault();tIn.focus()}
+  if(e.key==='Escape'){document.getElementById('dialog').classList.remove('open');document.body.style.overflow=''}
+});
+
+// Start orbit loop
+buildOrbit();
+orbitLoop();
+</script>
+</body>
+</html>
