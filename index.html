@@ -313,7 +313,7 @@ function buildOrbit(){
     const a=(i/count)*Math.PI*2;
     card.dataset.angle=a;
     card.innerHTML=`
-      <img src="${img.src}" alt="WORK ${img.idx}" loading="lazy" onerror="this.style.display='none'"/>
+      <img src="${img.src}" alt="WORK ${img.idx}" onerror="this.style.display='none'"/>
       <div class="card-tag"><span>FILE ${String(img.idx).padStart(2,'0')}</span></div>`;
     card.addEventListener('mouseenter',()=>{hoveredIdx=i;autoRotate=false});
     card.addEventListener('mouseleave',()=>{hoveredIdx=-1;setTimeout(()=>{if(hoveredIdx===-1)autoRotate=true},600)});
