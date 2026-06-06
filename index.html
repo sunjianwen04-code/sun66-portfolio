@@ -283,9 +283,7 @@ const totalCount=document.getElementById('totalCount');
 // 23 images: some are .png
 const images=Array.from({length:23},(_,i)=>{
   const n=i+1;
-  // img16 and img19 are .png
-  const ext=(n===16||n===19)?'png':'jpg';
-  return {idx:n,src:`images/img${String(n).padStart(2,'0')}.${ext}`};
+  return {idx:n,src:`images/img${String(n).padStart(2,'0')}.jpg`};
 });
 totalCount.textContent=images.length;
 
